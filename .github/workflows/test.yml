@@ -1,0 +1,66 @@
+name: Test Code Reviewer Environment
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        run: |
+          python test_environment.py
+
+      - name: Validate environment
+        run: |
+          python -c "
+from environment import CodeReviewerEnv
+from tasks import TASKS, get_task_names
+
+for task_name in get_task_names():
+    env = CodeReviewerEnv(task_name=task_name)
+    obs = env.reset()
+    assert obs.code_snippet.code, f'{task_name}: Empty code snippet'
+    print(f'✓ {task_name}: {obs.task_difficulty}')
+
+print('✓ All validations passed')
+"
+
+  docker-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t code-reviewer-env .
+
+      - name: Test Docker container
+        run: |
+          docker run -d -p 7860:7860 --name test-env code-reviewer-env
+          sleep 5
+          curl -f http://localhost:7860/ || exit 1
+          docker stop test-env
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f test-env 2>/dev/null || true

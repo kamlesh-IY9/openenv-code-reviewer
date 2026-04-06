@@ -1,0 +1,42 @@
+name: code-reviewer-env
+version: "1.0.0"
+description: |
+  A real-world code review environment where AI agents review code snippets,
+  identify issues (syntax errors, logic bugs, security vulnerabilities),
+  and suggest appropriate fixes. Designed for training and evaluating
+  code review assistant agents.
+
+author: "Kamlesh Patil"
+tags:
+  - code-review
+  - software-engineering
+  - real-world
+  - educational
+
+interface:
+  type: websocket
+  path: /ws
+
+endpoints:
+  reset:
+    method: POST
+    path: /reset
+  step:
+    method: POST
+    path: /step
+  state:
+    method: GET
+    path: /state
+
+models:
+  observation: CodeReviewerObservation
+  action: CodeReviewerAction
+  reward: CodeReviewerReward
+
+config:
+  max_steps_per_episode: 20
+  default_task: "syntax_check"
+  available_tasks:
+    - syntax_check
+    - logic_bug_detection
+    - security_audit
