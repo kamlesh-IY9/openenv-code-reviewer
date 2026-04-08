@@ -1,11 +1,3 @@
----
-title: Code Reviewer Env
-emoji: 🐳
-colorFrom: blue
-colorTo: green
-sdk: docker
-app_port: 7860
----
 # Code Reviewer Environment
 
 <div align="center">
@@ -21,6 +13,10 @@ app_port: 7860
 </div>
 
 ---
+
+## Demo 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d52f65c7-cbc6-47d2-8fcd-804056762289" />
+
 
 ## Overview
 
