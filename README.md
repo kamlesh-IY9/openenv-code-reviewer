@@ -37,6 +37,12 @@ The Code Reviewer Environment is an OpenEnv-compatible RL environment that train
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Interface Preview
+
+| Desktop | Mobile |
+|---------|--------|
+| ![Desktop UI](assets/screenshots/ui-desktop.png) | ![Mobile UI](assets/screenshots/ui-mobile.png) |
+
 ## Features
 
 | Feature | Description |
