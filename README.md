@@ -20,7 +20,7 @@ The Code Reviewer Environment is an OpenEnv-compatible RL environment that train
 
 - **Syntax Errors** (Easy) - Missing colons, unclosed brackets, indentation issues
 - **Logic Bugs** (Medium) - Off-by-one errors, incorrect comparisons
-- **Security Vulnerabilities** (Hard) - SQL injection, XSS, command injection
+- **Security Vulnerabilities** (Hard) - SQL injection, XSS, command injection 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
