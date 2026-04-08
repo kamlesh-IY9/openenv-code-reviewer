@@ -1665,11 +1665,12 @@ async def get_state():
 
 
 @app.post("/reset")
-async def reset_endpoint(request: Dict[str, Any]):
+async def reset_endpoint(request: Optional[Dict[str, Any]] = None):
     """Reset endpoint for HTTP API compatibility."""
     try:
-        task_name = request.get("task", "syntax_check")
-        session_id = request.get("session_id", "default")
+        req = request or {}
+        task_name = req.get("task", "syntax_check")
+        session_id = req.get("session_id", "default")
 
         env = CodeReviewerEnv(task_name=task_name)
         observation = env.reset(task_name)
@@ -1690,11 +1691,12 @@ async def reset_endpoint(request: Dict[str, Any]):
 
 
 @app.post("/step")
-async def step_endpoint(request: Dict[str, Any]):
+async def step_endpoint(request: Optional[Dict[str, Any]] = None):
     """Step endpoint for HTTP API compatibility."""
     try:
-        session_id = request.get("session_id", "default")
-        action_data = request.get("action", {})
+        req = request or {}
+        session_id = req.get("session_id", "default")
+        action_data = req.get("action", {})
 
         if session_id not in env_store:
             return JSONResponse(
