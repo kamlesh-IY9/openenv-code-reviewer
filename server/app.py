@@ -1838,6 +1838,11 @@ async def websocket_endpoint(websocket: WebSocket):
             del env_store[session_id]
 
 
-if __name__ == "__main__":
+def main():
+    """Start the Code Reviewer Environment server."""
     port = int(os.environ.get("PORT", 7860))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+if __name__ == "__main__":
+    main()
