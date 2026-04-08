@@ -1,0 +1,87 @@
+name: Test Code Reviewer Environment
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check
+        run: |
+          python -m py_compile server.py server/app.py server/environment.py inference.py validate.py test_environment.py
+
+      - name: Run test suite
+        run: |
+          python test_environment.py
+
+      - name: Run repository validator
+        run: |
+          python validate.py
+
+      - name: Smoke-check task loading
+        run: |
+          python - <<'PY'
+          from environment import CodeReviewerEnv
+          from tasks import get_task_names
+
+          for task_name in get_task_names():
+              env = CodeReviewerEnv(task_name=task_name)
+              obs = env.reset()
+              assert obs.code_snippet.code, f"{task_name}: empty code snippet"
+              print(f"{task_name}: {obs.task_difficulty}")
+          PY
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t code-reviewer-env .
+
+      - name: Test Docker container
+        run: |
+          docker run -d -p 7860:7860 --name test-env code-reviewer-env
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://localhost:7860/health | tee /tmp/health.json | grep -q '"status":"running"'; then
+              echo "Container is healthy on attempt ${attempt}"
+              exit 0
+            fi
+            echo "Waiting for container to become healthy (attempt ${attempt}/20)..."
+            sleep 3
+          done
+          echo "Container never became healthy"
+          docker logs test-env
+          exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop test-env 2>/dev/null || true
+          docker rm -f test-env 2>/dev/null || true
