@@ -378,6 +378,10 @@ class CodeReviewerEnv:
         """Create final reward after episode ends."""
         return self._calculate_reward(0.0, 0.0, 0.0)
 
+    def close(self) -> None:
+        """Release environment resources."""
+        return None
+
     def get_review_result(self) -> ReviewResult:
         """
         Get detailed review results after episode completion.

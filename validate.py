@@ -8,6 +8,7 @@ import os
 import sys
 import subprocess
 import json
+import shutil
 
 
 def print_header(text):
@@ -17,15 +18,15 @@ def print_header(text):
 
 
 def print_success(text):
-    print(f"  ✓ {text}")
+    print(f"  [OK] {text}")
 
 
 def print_error(text):
-    print(f"  ✗ {text}")
+    print(f"  [FAIL] {text}")
 
 
 def print_warning(text):
-    print(f"  ⚠ {text}")
+    print(f"  [WARN] {text}")
 
 
 def check_file_exists(filepath, description):
@@ -68,7 +69,7 @@ def check_openenv_yaml():
     
     try:
         import yaml
-        with open("openenv.yaml", "r") as f:
+        with open("openenv.yaml", "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
         
         required_keys = ["name", "version", "description", "interface", "endpoints", "models", "config"]
@@ -99,7 +100,7 @@ def check_dockerfile():
     print_header("Validating Dockerfile")
     
     try:
-        with open("Dockerfile", "r") as f:
+        with open("Dockerfile", "r", encoding="utf-8") as f:
             content = f.read()
         
         required_elements = [
@@ -129,7 +130,7 @@ def check_inference_script():
     print_header("Validating inference.py")
     
     try:
-        with open("inference.py", "r") as f:
+        with open("inference.py", "r", encoding="utf-8") as f:
             content = f.read()
         
         # Check logging format
@@ -289,15 +290,18 @@ def check_readme():
     print_header("Validating README.md")
     
     try:
-        with open("README.md", "r") as f:
+        with open("README.md", "r", encoding="utf-8") as f:
             content = f.read()
         
         required_sections = [
             ("## Overview", "Overview section"),
             ("## Quick Start", "Quick Start section"),
             ("## Tasks", "Tasks section"),
+            ("## Observation Space", "Observation space documentation"),
+            ("## Action Space", "Action space documentation"),
             ("## Environment API", "API documentation"),
             ("## Deployment", "Deployment instructions"),
+            ("## Baseline Scores", "Baseline scores section"),
         ]
         
         for pattern, description in required_sections:
@@ -317,8 +321,22 @@ def test_docker_build():
     """Test Docker build (optional, may be slow)."""
     print_header("Testing Docker Build (Optional)")
     
-    if not os.path.exists("/usr/bin/docker") and not os.path.exists("/usr/local/bin/docker"):
+    if shutil.which("docker") is None:
         print_warning("Docker not found, skipping build test")
+        return True
+
+    try:
+        daemon_check = subprocess.run(
+            ["docker", "info"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if daemon_check.returncode != 0:
+            print_warning("Docker daemon not available, skipping build test")
+            return True
+    except Exception as e:
+        print_warning(f"Could not query Docker daemon, skipping build test: {e}")
         return True
     
     print("Attempting Docker build (this may take a few minutes)...")
@@ -384,13 +402,13 @@ def main():
     total_count = len(results)
     
     for name, passed in results:
-        status = "✓ PASS" if passed else "✗ FAIL"
+        status = "[PASS]" if passed else "[FAIL]"
         print(f"  {status}: {name}")
     
     print(f"\n  Result: {passed_count}/{total_count} checks passed")
     
     if passed_count == total_count:
-        print("\n  🎉 ALL CHECKS PASSED! Ready to submit!")
+        print("\n  [OK] ALL CHECKS PASSED! Ready to submit!")
         print("\n  Next steps:")
         print("  1. Push to GitHub")
         print("  2. Deploy to Hugging Face Spaces")
@@ -398,7 +416,7 @@ def main():
         print("  4. Submit your entry!")
         return 0
     else:
-        print("\n  ⚠ SOME CHECKS FAILED")
+        print("\n  [WARN] SOME CHECKS FAILED")
         print("  Please fix the issues above before submitting.")
         return 1
 

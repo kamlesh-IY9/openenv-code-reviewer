@@ -32,17 +32,17 @@ def print_header(text: str):
 
 def print_success(text: str):
     """Print a success message."""
-    print(f"  ✓ {text}")
+    print(f"  [OK] {text}")
 
 
 def print_error(text: str):
     """Print an error message."""
-    print(f"  ✗ {text}")
+    print(f"  [FAIL] {text}")
 
 
 def print_info(text: str):
     """Print an info message."""
-    print(f"  ℹ {text}")
+    print(f"  [INFO] {text}")
 
 
 def test_models() -> bool:
@@ -335,7 +335,7 @@ def test_inference_script_structure() -> bool:
     print_header("Testing Inference Script Structure")
 
     try:
-        with open("inference.py", "r") as f:
+        with open("inference.py", "r", encoding="utf-8") as f:
             content = f.read()
 
         # Check for required components
@@ -413,10 +413,10 @@ def run_all_tests() -> Tuple[bool, List[str]]:
     print(f"  Failed: {failed}/{len(tests)}")
 
     if failed == 0:
-        print("\n  ✓ ALL TESTS PASSED!")
+        print("\n  [OK] ALL TESTS PASSED!")
         return True, []
     else:
-        print("\n  ✗ SOME TESTS FAILED")
+        print("\n  [FAIL] SOME TESTS FAILED")
         failed_tests = [name for name, success in results if not success]
         return False, failed_tests
 

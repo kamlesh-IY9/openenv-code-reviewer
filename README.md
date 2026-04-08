@@ -76,9 +76,9 @@ python test_environment.py
 
 ```bash
 # Start API server on port 7860 with interactive web UI
-python server/app.py
+python server.py
 
-# Or run directly from server directory
+# Or run the app module directly
 cd server
 python app.py
 
@@ -157,13 +157,53 @@ Success Threshold: 70%
 
 ---
 
+## Observation Space
+
+Each step returns a `CodeReviewerObservation` with the following fields:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `code_snippet` | `CodeSnippet` | Source code under review, including language and optional context |
+| `task_description` | `str` | The current review objective |
+| `task_difficulty` | `str` | Difficulty label: `easy`, `medium`, or `hard` |
+| `step_number` | `int` | Current step in the episode |
+| `max_steps` | `int` | Total step budget for the task |
+| `previous_issues` | `List[CodeIssue]` | Issues already reported by the agent |
+| `hint_available` | `bool` | Whether the agent can still request a hint |
+| `hint_text` | `Optional[str]` | Latest hint returned by the environment |
+| `done` | `bool` | Whether the episode has ended |
+| `info` | `Dict[str, Any]` | Extra metadata such as expected issue count |
+
+## Action Space
+
+Agents send a `CodeReviewerAction` using one of three actions:
+
+| Action | Required fields | Purpose |
+|--------|-----------------|---------|
+| `identify_issue` | `issue` | Report a suspected syntax error, logic bug, or vulnerability |
+| `request_hint` | none | Ask for a hint with a small reward penalty |
+| `submit_review` | none | End the episode and score the review |
+
+When `action_type` is `identify_issue`, the nested `issue` payload includes:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `line_number` | `int` | 1-indexed line number of the issue |
+| `issue_type` | `IssueType` | Category such as `syntax_error` or `security_vulnerability` |
+| `severity` | `Severity` | Impact level for the issue |
+| `description` | `str` | Human-readable explanation of the finding |
+| `suggested_fix` | `Optional[str]` | Suggested repair |
+
+---
+
 ## Environment API
 
 ### REST Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/` | GET | Health check |
+| `/` | GET | Interactive browser UI |
+| `/health` | GET | Health check for local or HF deployment |
 | `/state` | GET | Get environment state |
 | `/reset` | POST | Reset environment with task |
 | `/step` | POST | Execute an action |
@@ -264,8 +304,8 @@ ws.send(JSON.stringify({action: "get_result"}));
 
 3. **Verify Deployment**
    ```bash
-   curl https://YOUR_USERNAME-code-reviewer-env.hf.space/
-   # Should return: {"status": "running", ...}
+   curl https://YOUR_USERNAME-code-reviewer-env.hf.space/health
+   # Should return JSON with status="running"
    ```
 
 ### Local Docker
@@ -278,7 +318,7 @@ docker build -t code-reviewer-env .
 docker run -p 7860:7860 code-reviewer-env
 
 # Test
-curl http://localhost:7860/
+curl http://localhost:7860/health
 ```
 
 ---
@@ -383,10 +423,10 @@ python inference.py
 
 ```
 [START] task=syntax_check env=code-reviewer-env model=Qwen/Qwen2.5-72B-Instruct
-[STEP] step=1 action=identify_issue(line=5,type=syntax_error) reward=0.40 done=false
-[STEP] step=2 action=identify_issue(line=10,type=syntax_error) reward=0.40 done=false
+[STEP] step=1 action=identify_issue(line=5,type=syntax_error) reward=0.40 done=false error=null
+[STEP] step=2 action=identify_issue(line=10,type=syntax_error) reward=0.40 done=false error=null
 ...
-[END] success=true steps=12 score=0.857
+[END] success=true steps=12 rewards=0.40,0.40,0.30,0.55
 ```
 
 ---
@@ -398,6 +438,7 @@ openenv-code-reviewer/
 ├── .github/
 │   └── workflows/
 │       └── test.yml          # GitHub Actions CI/CD
+├── server.py                 # Root compatibility server entrypoint
 ├── server/
 │   ├── app.py               # FastAPI + WebSocket server (with Web UI)
 │   ├── environment.py       # Core RL environment logic

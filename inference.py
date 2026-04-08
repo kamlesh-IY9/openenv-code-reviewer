@@ -1,20 +1,19 @@
 """
-Baseline Inference Script for Code Reviewer Environment.
+Baseline inference script for Code Reviewer Environment.
 
 This script runs an LLM agent against the Code Reviewer environment
 and produces structured logs in the required format:
   [START] task=... env=... model=...
   [STEP] step=... action=... reward=... done=... error=...
-  [END] success=... steps=... score=... rewards=...
+  [END] success=... steps=... rewards=...
 
 Environment Variables:
   API_BASE_URL: The API endpoint for the LLM (default: https://router.huggingface.co/v1)
   MODEL_NAME: The model identifier (default: Qwen/Qwen2.5-72B-Instruct)
-  HF_TOKEN: Your Hugging Face / API key
+  HF_TOKEN: Your Hugging Face API key
   CODE_REVIEWER_TASK: Task to run (default: syntax_check)
 """
 
-import asyncio
 import os
 import textwrap
 from typing import List, Optional, Dict, Any
@@ -22,12 +21,14 @@ from typing import List, Optional, Dict, Any
 from openai import OpenAI
 
 # Environment configuration
-IMAGE_NAME = os.getenv("IMAGE_NAME")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
 TASK_NAME = os.getenv("CODE_REVIEWER_TASK", "syntax_check")
 BENCHMARK = os.getenv("CODE_REVIEWER_BENCHMARK", "code-reviewer-env")
+
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 
 # Hyperparameters
 MAX_STEPS = 20
@@ -90,10 +91,13 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     )
 
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, rewards: List[float]) -> None:
     """Log the end of an episode."""
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
+        flush=True,
+    )
 
 
 def build_user_prompt(
@@ -222,76 +226,91 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
     rewards_list = []
     done = False
     step = 0
-    error = None
-    
-    while not done and step < MAX_STEPS:
-        step += 1
-        
-        # Get action from model
-        action_data = get_model_action(
-            client=client,
-            step=step,
-            code_snippet=observation.code_snippet.model_dump(),
-            task_description=observation.task_description,
-            previous_issues=[issue.model_dump() for issue in observation.previous_issues],
-            hint_text=observation.hint_text,
-        )
-        
-        if action_data is None:
-            error = "Failed to parse model response"
-            log_step(step, "parse_error", 0.0, True, error)
-            rewards_list.append(0.0)
-            break
-        
-        # Convert to CodeReviewerAction
-        try:
-            issue_data = action_data.get("issue")
-            issue = None
-            if issue_data:
-                issue = CodeIssue(
-                    line_number=issue_data.get("line_number", 0),
-                    issue_type=IssueType(issue_data.get("issue_type", "no_issue")),
-                    severity=Severity(issue_data.get("severity", "info")),
-                    description=issue_data.get("description", ""),
-                    suggested_fix=issue_data.get("suggested_fix"),
-                )
-            
-            action = CodeReviewerAction(
-                action_type=action_data.get("action_type", "submit_review"),
-                issue=issue,
-                confidence=action_data.get("confidence", 0.5),
-                reasoning=action_data.get("reasoning"),
-            )
-            
-            # Execute step
-            observation, reward, done, info = env.step(action)
-            
-            # Log step
-            action_str = f"{action.action_type}"
-            if action.issue:
-                action_str += f"(line={action.issue.line_number},type={action.issue.issue_type.value})"
-            
-            log_step(step, action_str, reward.step_reward, done, info.get("error"))
-            rewards_list.append(reward.step_reward)
-            
-        except Exception as e:
-            error = str(e)
-            log_step(step, "action_error", 0.0, True, error)
-            rewards_list.append(0.0)
-            done = True
-    
-    # Get final result
+    success = False
+    final_score = 0.0
+    episode_error = None
+
     try:
-        result = env.get_review_result()
-        final_score = result.completion_score
-        success = final_score >= SUCCESS_SCORE_THRESHOLD
-    except:
-        # Episode didn't complete properly
-        final_score = 0.0
+        while not done and step < MAX_STEPS:
+            step += 1
+
+            # Get action from model
+            action_data = get_model_action(
+                client=client,
+                step=step,
+                code_snippet=observation.code_snippet.model_dump(),
+                task_description=observation.task_description,
+                previous_issues=[
+                    issue.model_dump() for issue in observation.previous_issues
+                ],
+                hint_text=observation.hint_text,
+            )
+
+            if action_data is None:
+                error = "Failed to parse model response"
+                log_step(step, "parse_error", 0.0, True, error)
+                rewards_list.append(0.0)
+                done = True
+                break
+
+            # Convert to CodeReviewerAction
+            try:
+                issue_data = action_data.get("issue")
+                issue = None
+                if issue_data:
+                    issue = CodeIssue(
+                        line_number=issue_data.get("line_number", 0),
+                        issue_type=IssueType(issue_data.get("issue_type", "no_issue")),
+                        severity=Severity(issue_data.get("severity", "info")),
+                        description=issue_data.get("description", ""),
+                        suggested_fix=issue_data.get("suggested_fix"),
+                    )
+
+                action = CodeReviewerAction(
+                    action_type=action_data.get("action_type", "submit_review"),
+                    issue=issue,
+                    confidence=action_data.get("confidence", 0.5),
+                    reasoning=action_data.get("reasoning"),
+                )
+
+                # Execute step
+                observation, reward, done, info = env.step(action)
+
+                # Log step
+                action_str = f"{action.action_type}"
+                if action.issue:
+                    action_str += (
+                        f"(line={action.issue.line_number},"
+                        f"type={action.issue.issue_type.value})"
+                    )
+
+                log_step(step, action_str, reward.step_reward, done, info.get("error"))
+                rewards_list.append(reward.step_reward)
+
+            except Exception as e:
+                error = str(e)
+                log_step(step, "action_error", 0.0, True, error)
+                rewards_list.append(0.0)
+                done = True
+
+        try:
+            result = env.get_review_result()
+            final_score = result.completion_score
+            success = final_score >= SUCCESS_SCORE_THRESHOLD
+        except RuntimeError:
+            final_score = 0.0
+            success = False
+
+    except Exception as e:
+        episode_error = e
         success = False
-    
-    log_end(success, step, final_score, rewards_list)
-    
+    finally:
+        env.close()
+        log_end(success, step, rewards_list)
+
+    if episode_error is not None:
+        raise episode_error
+
     return success, step, final_score, rewards_list
 
 
@@ -300,7 +319,7 @@ def main():
     # Initialize OpenAI client
     client = OpenAI(
         base_url=API_BASE_URL,
-        api_key=API_KEY,
+        api_key=HF_TOKEN,
     )
     
     # Run episode

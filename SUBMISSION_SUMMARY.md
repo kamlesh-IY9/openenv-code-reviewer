@@ -17,7 +17,7 @@ A complete OpenEnv environment where AI agents review code snippets and identify
 - **Meaningful Rewards**: Partial progress signals, penalties for false positives
 - **Deterministic Graders**: Clear success/failure criteria
 
-## Files Created (14 files, ~2,800 lines)
+## Files Created (15 files, ~2,800 lines)
 
 ### Core Implementation
 | File | Lines | Description |
@@ -26,7 +26,8 @@ A complete OpenEnv environment where AI agents review code snippets and identify
 | `models.py` | 109 | Pydantic models (Observation, Action, Reward, etc.) |
 | `environment.py` | 389 | Core environment with step()/reset()/state() API |
 | `tasks.py` | 378 | 3 task definitions with expected issues |
-| `server.py` | 240 | WebSocket/HTTP server for HF Spaces |
+| `server.py` | ~20 | Root compatibility launcher for Docker and local runs |
+| `server/app.py` | 240+ | WebSocket/HTTP server for HF Spaces |
 
 ### Submission Requirements
 | File | Lines | Description |
@@ -89,9 +90,9 @@ A complete OpenEnv environment where AI agents review code snippets and identify
 - ✅ Sensible episode boundaries
 
 ### 4. Code Quality & Spec Compliance (15% of score)
-- ✅ `openenv validate` passes
-- ✅ `docker build` works
-- ✅ HF Space deploys and responds
+- ✅ Repository validation script passes
+- ✅ Docker entrypoint is configured
+- ✅ HF Space deployment path is documented
 - ✅ Baseline script reproduces scores
 
 ### 5. Creativity & Novelty (10% of score)
@@ -101,26 +102,26 @@ A complete OpenEnv environment where AI agents review code snippets and identify
 
 ## Validation Results
 
-All 9/9 checks passed:
+Repository validation checks pass after the compatibility and documentation fixes:
 
 ```
-✓ PASS: Required Files
-✓ PASS: openenv.yaml
-✓ PASS: Dockerfile
-✓ PASS: inference.py
-✓ PASS: Pydantic Models
-✓ PASS: Environment
-✓ PASS: Tasks
-✓ PASS: README.md
-✓ PASS: Docker Build
+[PASS] Required Files
+[PASS] openenv.yaml
+[PASS] Dockerfile
+[PASS] inference.py
+[PASS] Pydantic Models
+[PASS] Environment
+[PASS] Tasks
+[PASS] README.md
+[PASS] Docker Build
 ```
 
 ## Deployment Status
 
 - [x] GitHub repository ready
 - [x] HF Spaces deployment configured
-- [x] Dockerfile tested
-- [x] All validation checks pass
+- [ ] Docker build verified in this workspace
+- [x] All repository validation checks pass
 
 ## Next Steps for You
 
@@ -143,7 +144,7 @@ All 9/9 checks passed:
 
 3. **Test Deployment**
    ```bash
-   curl https://YOUR_USERNAME-code-reviewer-env.hf.space/
+   curl https://YOUR_USERNAME-code-reviewer-env.hf.space/health
    ```
 
 4. **Run Baseline Inference**

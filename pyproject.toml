@@ -58,10 +58,11 @@ packages = ["."]
 [tool.hatch.build.targets.sdist]
 include = [
     "/server",
+    "/server.py",
     "/models.py",
     "/client.py",
     "/tasks.py",
-    "/environment.py",
+    "/environment.py",  # Root re-export wrapper
     "/inference.py",
     "/openenv.yaml",
     "/README.md",

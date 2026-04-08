@@ -160,7 +160,7 @@ Hugging Face Spaces with Docker typically take **2-5 minutes** to build.
 
 ```bash
 # Test health endpoint
-curl https://YOUR_USERNAME-code-reviewer-env.hf.space/
+curl https://YOUR_USERNAME-code-reviewer-env.hf.space/health
 
 # Expected response:
 {
@@ -219,9 +219,9 @@ python inference.py
 
 # Expected output:
 # [START] task=syntax_check env=code-reviewer-env ...
-# [STEP] step=1 action=identify_issue ...
+# [STEP] step=1 action=identify_issue ... error=null
 # ...
-# [END] success=true steps=12 score=0.857
+# [END] success=true steps=12 rewards=0.40,0.40,0.30,0.55
 ```
 
 ```bash
@@ -313,7 +313,7 @@ python server.py &
 pkill -f server.py
 
 # 3. Verify deployment
-curl https://YOUR_SPACE.hf.space/
+curl https://YOUR_SPACE.hf.space/health
 ```
 
 ### Submit
@@ -398,7 +398,7 @@ If changes don't appear:
 # Local testing
 python test_environment.py              # Run all tests
 python server.py                       # Start server
-curl http://localhost:7860/            # Test local server
+curl http://localhost:7860/health      # Test local server
 
 # Docker
 docker build -t code-reviewer .        # Build image

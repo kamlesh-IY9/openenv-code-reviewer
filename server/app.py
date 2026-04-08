@@ -18,6 +18,7 @@ import uvicorn
 
 from server.environment import CodeReviewerEnv
 from models import CodeReviewerAction, CodeIssue
+from tasks import get_task_names
 
 
 env_store: Dict[str, CodeReviewerEnv] = {}
@@ -629,7 +630,13 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "healthy", "environment": "code-reviewer-env", "version": "1.0.0"}
+    return {
+        "status": "running",
+        "environment": "code-reviewer-env",
+        "version": "1.0.0",
+        "available_tasks": get_task_names(),
+        "active_sessions": len(env_store),
+    }
 
 
 @app.get("/state")
