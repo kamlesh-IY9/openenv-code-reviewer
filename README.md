@@ -1,3 +1,14 @@
+---
+title: Code Reviewer Env
+emoji: "🐳"
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: Review code for syntax, logic, and security issues
+---
+
 # &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ``Code Reviewer Environment``
 
 <div align="center">
