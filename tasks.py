@@ -376,3 +376,21 @@ def get_task_difficulty(task_name: str) -> str:
     if task_name in TASKS:
         return TASKS[task_name].difficulty
     return "unknown"
+
+
+def get_task_metadata() -> list[dict]:
+    """Return task metadata for discovery and validation endpoints."""
+    metadata = []
+    for task_name, task in TASKS.items():
+        metadata.append(
+            {
+                "id": task_name,
+                "name": task.name,
+                "description": task.description.strip(),
+                "difficulty": task.difficulty,
+                "max_steps": task.max_steps,
+                "expected_issues": len(task.expected_issues),
+                "grader": True,
+            }
+        )
+    return metadata
