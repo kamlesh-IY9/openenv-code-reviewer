@@ -27,6 +27,12 @@ endpoints:
   state:
     method: GET
     path: /state
+  tasks:
+    method: GET
+    path: /tasks
+  grader:
+    method: POST
+    path: /grader
 
 models:
   observation: CodeReviewerObservation

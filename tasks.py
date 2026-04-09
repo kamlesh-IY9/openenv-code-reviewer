@@ -385,12 +385,34 @@ def get_task_metadata() -> list[dict]:
         metadata.append(
             {
                 "id": task_name,
+                "task_id": task_name,
                 "name": task.name,
                 "description": task.description.strip(),
                 "difficulty": task.difficulty,
                 "max_steps": task.max_steps,
                 "expected_issues": len(task.expected_issues),
                 "grader": True,
+                "has_grader": True,
+                "grader_endpoint": "/grader",
+                "action_schema": {
+                    "action_types": [
+                        "identify_issue",
+                        "submit_review",
+                        "request_hint",
+                    ],
+                    "fields": {
+                        "action_type": "str (required)",
+                        "issue": {
+                            "line_number": "int (required for identify_issue)",
+                            "issue_type": "str (required for identify_issue)",
+                            "severity": "str (required for identify_issue)",
+                            "description": "str (required for identify_issue)",
+                            "suggested_fix": "str (optional)",
+                        },
+                        "confidence": "float (optional, 0.0-1.0)",
+                        "reasoning": "str (optional)",
+                    },
+                },
             }
         )
     return metadata
