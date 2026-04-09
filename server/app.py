@@ -19,6 +19,8 @@ import uvicorn
 
 from server.environment import CodeReviewerEnv
 from models import CodeReviewerAction, CodeIssue
+from graders import grade_task as grade_task_answer
+from graders import list_graders
 from tasks import TASKS, get_task_metadata, get_task_names
 
 
@@ -43,108 +45,40 @@ class StepRequest(BaseModel):
 class GraderRequest(BaseModel):
     """Typed request model for standalone grader compatibility."""
 
-    task_id: str
-    answer: str
+    task_id: Optional[str] = None
+    task: Optional[str] = None
+    task_name: Optional[str] = None
+    answer: Optional[str] = None
+    submission: Optional[str] = None
+    response: Optional[str] = None
+    output: Optional[str] = None
+    final_answer: Optional[str] = None
+    agent_output: Optional[str] = None
     session_id: str = "default"
 
 
-def _normalize_text(text: str) -> str:
-    """Normalize arbitrary answer text for deterministic matching."""
-
-    lowered = text.lower()
-    for char in "{}[](),.:;!?\n\t\r'\"`":
-        lowered = lowered.replace(char, " ")
-    return " ".join(lowered.split())
-
-
-def _issue_keywords(issue: CodeIssue) -> List[str]:
-    """Build stable keyword hints for grader matching."""
-
-    keywords: set[str] = {
-        issue.issue_type.value.replace("_", " "),
-        issue.issue_type.value,
-        issue.severity.value,
-        f"line {issue.line_number}",
-    }
-
-    for source_text in (issue.description, issue.suggested_fix or ""):
-        for word in _normalize_text(source_text).split():
-            if len(word) >= 4 and word not in {
-                "with",
-                "this",
-                "that",
-                "from",
-                "into",
-                "after",
-                "before",
-                "should",
-                "would",
-                "where",
-                "there",
-                "return",
-            }:
-                keywords.add(word)
-
-    return sorted(keywords)
+def _coerce_grader_request(request: Optional[Dict[str, Any]]) -> GraderRequest:
+    """Accept multiple common grader payload shapes."""
+    data = request or {}
+    if isinstance(data, GraderRequest):
+        return data
+    return GraderRequest(**data)
 
 
-def _answer_matches_issue(answer_text: str, issue: CodeIssue) -> bool:
-    """Score whether a free-form answer identifies an expected issue."""
+def _resolve_task_id(request: GraderRequest) -> Optional[str]:
+    return request.task_id or request.task or request.task_name
 
-    normalized = _normalize_text(answer_text)
-    if not normalized:
-        return False
 
-    line_markers = (
-        f"line {issue.line_number}",
-        f"line_number {issue.line_number}",
-        f"line:{issue.line_number}",
+def _resolve_answer(request: GraderRequest) -> str:
+    return (
+        request.answer
+        or request.submission
+        or request.response
+        or request.output
+        or request.final_answer
+        or request.agent_output
+        or ""
     )
-    line_hit = any(marker in normalized for marker in line_markers)
-
-    type_markers = (
-        issue.issue_type.value,
-        issue.issue_type.value.replace("_", " "),
-    )
-    type_hit = any(marker in normalized for marker in type_markers)
-
-    keyword_hits = sum(1 for keyword in _issue_keywords(issue) if keyword in normalized)
-    fix_hit = bool(issue.suggested_fix) and _normalize_text(issue.suggested_fix) in normalized
-
-    return bool(
-        (line_hit and (type_hit or keyword_hits >= 3 or fix_hit))
-        or (type_hit and keyword_hits >= 4)
-        or keyword_hits >= 5
-        or fix_hit
-    )
-
-
-def _grade_answer_text(task_id: str, answer: str) -> Dict[str, Any]:
-    """Grade a free-form answer without relying on session state."""
-
-    task = TASKS[task_id]
-    matched_lines: List[int] = []
-
-    for expected_issue in task.expected_issues:
-        if _answer_matches_issue(answer, expected_issue):
-            matched_lines.append(expected_issue.line_number)
-
-    expected_count = len(task.expected_issues)
-    matched_count = len(set(matched_lines))
-    score = min(matched_count / expected_count, 1.0) if expected_count > 0 else 1.0
-
-    return {
-        "task_id": task_id,
-        "score": score,
-        "success": score >= 0.7,
-        "reward": score,
-        "max_reward": 1.0,
-        "matched_issues": matched_count,
-        "expected_issues": expected_count,
-        "feedback": (
-            f"Matched {matched_count} of {expected_count} expected issues for {task_id}."
-        ),
-    }
 
 
 @asynccontextmanager
@@ -1793,6 +1727,17 @@ async def list_tasks():
     return get_task_metadata()
 
 
+@app.get("/info")
+async def get_info():
+    """Compatibility metadata endpoint for validators that probe /info."""
+    return {
+        "name": "code-reviewer-env",
+        "version": "1.0.0",
+        "tasks": get_task_metadata(),
+        "graders": list_graders(),
+    }
+
+
 @app.get("/validate")
 async def validate():
     """Expose task/grader checks expected by hackathon evaluators."""
@@ -1812,6 +1757,7 @@ async def validate():
         "env_name": "code-reviewer-env",
         "version": "1.0.0",
         "tasks": get_task_metadata(),
+        "graders": list_graders(),
     }
 
 
@@ -1949,27 +1895,34 @@ async def grade_task(task_id: str, session_id: str = "default"):
 
 
 @app.post("/grader")
-async def grade_answer(request: GraderRequest):
+async def grade_answer(request: Optional[Dict[str, Any]] = None):
     """Grade a standalone answer for a specific task."""
-    if request.task_id not in TASKS:
+    parsed = _coerce_grader_request(request)
+    task_id = _resolve_task_id(parsed)
+    if not task_id:
+        task_id = "syntax_check"
+
+    if task_id not in TASKS:
         return JSONResponse(
             status_code=404,
-            content={"error": f"Unknown task: {request.task_id}", "status": "error"},
+            content={"error": f"Unknown task: {task_id}", "status": "error"},
         )
 
     try:
-        if request.session_id in env_store:
-            env = env_store[request.session_id]
-            if env.task_name == request.task_id:
+        answer_text = _resolve_answer(parsed)
+
+        if parsed.session_id in env_store:
+            env = env_store[parsed.session_id]
+            if env.task_name == task_id:
                 current_state = env.state()
-                expected_count = len(TASKS[request.task_id].expected_issues)
+                expected_count = len(TASKS[task_id].expected_issues)
                 session_score = (
                     min(current_state["issues_identified"] / expected_count, 1.0)
                     if expected_count > 0
                     else 1.0
                 )
                 session_result = {
-                    "task_id": request.task_id,
+                    "task_id": task_id,
                     "score": session_score,
                     "success": session_score >= 0.7,
                     "reward": session_score,
@@ -1977,21 +1930,27 @@ async def grade_answer(request: GraderRequest):
                     "matched_issues": current_state["issues_identified"],
                     "expected_issues": expected_count,
                     "feedback": (
-                        f"Session-based grade for {request.task_id}: "
+                        f"Session-based grade for {task_id}: "
                         f"{current_state['issues_identified']} of {expected_count} issues found."
                     ),
                 }
-                if request.answer.strip():
-                    answer_result = _grade_answer_text(request.task_id, request.answer)
+                if answer_text.strip():
+                    answer_result = grade_task_answer(task_id, answer_text)
                     if answer_result["score"] > session_result["score"]:
                         return answer_result
                 return session_result
 
-        return _grade_answer_text(request.task_id, request.answer)
+        return grade_task_answer(task_id, answer_text)
     except Exception as e:
         return JSONResponse(
             status_code=400, content={"error": str(e), "status": "error"}
         )
+
+
+@app.post("/grade")
+async def grade_answer_alias(request: Optional[Dict[str, Any]] = None):
+    """Compatibility alias for validators that call /grade instead of /grader."""
+    return await grade_answer(request)
 
 
 @app.websocket("/ws")
