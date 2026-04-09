@@ -8,26 +8,34 @@ and produces structured logs in the required format:
   [END] success=... steps=... score=... rewards=...
 
 Environment Variables:
-  API_BASE_URL: The API endpoint for the LLM (default: https://router.huggingface.co/v1)
-  MODEL_NAME: The model identifier (default: Qwen/Qwen2.5-72B-Instruct)
-  HF_TOKEN: Your Hugging Face API key
+  API_BASE_URL:      LLM endpoint (default: https://router.huggingface.co/v1)
+  MODEL_NAME:        Model identifier (default: Qwen/Qwen2.5-72B-Instruct)
+  HF_TOKEN:          Hugging Face API token (required)
   CODE_REVIEWER_TASK: Task to run (default: syntax_check)
+  ENV_BASE_URL:      Code-reviewer server URL (default: http://localhost:7860)
 """
 
 import os
+import json
 import textwrap
+import time
 from typing import List, Optional, Dict, Any
 
+import httpx
 from openai import OpenAI
 
-# Environment configuration
+# LLM configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Task / environment configuration
 TASK_NAME = os.getenv("CODE_REVIEWER_TASK", "syntax_check")
 BENCHMARK = os.getenv("CODE_REVIEWER_BENCHMARK", "code-reviewer-env")
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860").rstrip("/")
+SESSION_ID = "inference-session"
 
-# Hyperparameters
+# Inference hyperparameters
 MAX_STEPS = 20
 TEMPERATURE = 0.3
 MAX_TOKENS = 500
@@ -204,41 +212,87 @@ def get_model_action(
         return None
 
 
+# ---------------------------------------------------------------------------
+# HTTP helpers — call the running environment server
+# ---------------------------------------------------------------------------
+
+def _wait_for_server(timeout: int = 30) -> None:
+    """Block until the environment server returns 200 on /health."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            r = httpx.get(f"{ENV_BASE_URL}/health", timeout=3)
+            if r.status_code == 200:
+                return
+        except Exception:
+            pass
+        time.sleep(1)
+    raise RuntimeError(f"Environment server at {ENV_BASE_URL} did not become ready in {timeout}s")
+
+
+def _reset(task_name: str) -> Dict[str, Any]:
+    """Call POST /reset and return the parsed response."""
+    payload = {"task": task_name, "session_id": SESSION_ID}
+    r = httpx.post(f"{ENV_BASE_URL}/reset", json=payload, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+    if data.get("status") != "success":
+        raise RuntimeError(f"Reset failed: {data}")
+    return data
+
+
+def _step(action_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Call POST /step and return the parsed response."""
+    payload = {"session_id": SESSION_ID, "action": action_data}
+    r = httpx.post(f"{ENV_BASE_URL}/step", json=payload, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+    if data.get("status") != "success":
+        raise RuntimeError(f"Step failed: {data}")
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Episode runner
+# ---------------------------------------------------------------------------
+
 def run_episode(client: OpenAI, task_name: str) -> tuple:
     """
-    Run a single episode on the specified task.
-    
+    Run a single episode by talking to the HTTP environment server.
+
     Returns:
         Tuple of (success, steps, score, rewards_list)
     """
-    from environment import CodeReviewerEnv
-    from models import CodeReviewerAction, CodeIssue, IssueType, Severity
-
-    rewards_list = []
+    rewards_list: List[float] = []
     done = False
     step = 0
     success = False
     final_score = 0.0
-    env = None
 
     try:
-        # Initialize environment
-        env = CodeReviewerEnv(task_name=task_name)
-        observation = env.reset(task_name)
+        # Wait for server to be ready (matters when Docker starts cold)
+        _wait_for_server(timeout=30)
+
+        # Reset episode
+        reset_resp = _reset(task_name)
+        obs = reset_resp["observation"]
 
         while not done and step < MAX_STEPS:
             step += 1
 
-            # Get action from model
+            code_snippet = obs.get("code_snippet") or {}
+            task_description = obs.get("task_description", "")
+            previous_issues = obs.get("previous_issues") or []
+            hint_text = obs.get("hint_text")
+
+            # Get action from LLM
             action_data = get_model_action(
                 client=client,
                 step=step,
-                code_snippet=observation.code_snippet.model_dump(),
-                task_description=observation.task_description,
-                previous_issues=[
-                    issue.model_dump() for issue in observation.previous_issues
-                ],
-                hint_text=observation.hint_text,
+                code_snippet=code_snippet,
+                task_description=task_description,
+                previous_issues=previous_issues,
+                hint_text=hint_text,
             )
 
             if action_data is None:
@@ -248,39 +302,48 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
                 done = True
                 break
 
-            # Convert to CodeReviewerAction
+            # Build the action payload expected by /step
+            action_type = action_data.get("action_type", "submit_review")
+            issue_data = action_data.get("issue") or {}
+
+            env_action: Dict[str, Any] = {
+                "action_type": action_type,
+                "confidence": action_data.get("confidence", 0.9),
+            }
+            if issue_data and action_type == "identify_issue":
+                env_action["issue"] = {
+                    "line_number": issue_data.get("line_number", 0),
+                    "issue_type": issue_data.get("issue_type", "no_issue"),
+                    "severity": issue_data.get("severity", "info"),
+                    "description": issue_data.get("description", ""),
+                    "suggested_fix": issue_data.get("suggested_fix"),
+                }
+
             try:
-                issue_data = action_data.get("issue")
-                issue = None
-                if issue_data:
-                    issue = CodeIssue(
-                        line_number=issue_data.get("line_number", 0),
-                        issue_type=IssueType(issue_data.get("issue_type", "no_issue")),
-                        severity=Severity(issue_data.get("severity", "info")),
-                        description=issue_data.get("description", ""),
-                        suggested_fix=issue_data.get("suggested_fix"),
-                    )
+                step_resp = _step(env_action)
+                obs = step_resp["observation"]
+                reward_obj = step_resp.get("reward") or {}
+                step_reward = float(reward_obj.get("step_reward", 0.0))
+                done = bool(step_resp.get("done", False))
+                info = step_resp.get("info") or {}
 
-                action = CodeReviewerAction(
-                    action_type=action_data.get("action_type", "submit_review"),
-                    issue=issue,
-                    confidence=action_data.get("confidence", 0.5),
-                    reasoning=action_data.get("reasoning"),
-                )
-
-                # Execute step
-                observation, reward, done, info = env.step(action)
-
-                # Log step
-                action_str = f"{action.action_type}"
-                if action.issue:
+                # Build action label for log
+                action_str = action_type
+                if issue_data and action_type == "identify_issue":
                     action_str += (
-                        f"(line={action.issue.line_number},"
-                        f"type={action.issue.issue_type.value})"
+                        f"(line={issue_data.get('line_number', '?')},"
+                        f"type={issue_data.get('issue_type', 'unknown')})"
                     )
 
-                log_step(step, action_str, reward.step_reward, done, info.get("error"))
-                rewards_list.append(reward.step_reward)
+                log_step(step, action_str, step_reward, done, info.get("error"))
+                rewards_list.append(step_reward)
+
+                # Collect final score when done
+                if done:
+                    final_score = float(
+                        reward_obj.get("task_completion_score", 0.0)
+                    )
+                    success = final_score >= SUCCESS_SCORE_THRESHOLD
 
             except Exception as e:
                 error = str(e)
@@ -288,23 +351,9 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
                 rewards_list.append(0.0)
                 done = True
 
-        try:
-            result = env.get_review_result()
-            final_score = result.completion_score
-            success = final_score >= SUCCESS_SCORE_THRESHOLD
-        except RuntimeError:
-            final_score = 0.0
-            success = False
-
     except Exception as e:
         print(f"Error running episode: {e}", flush=True)
         success = False
-    finally:
-        if env is not None:
-            try:
-                env.close()
-            except Exception as close_error:
-                print(f"Error closing environment: {close_error}", flush=True)
 
     return success, step, final_score, rewards_list
 
