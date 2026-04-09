@@ -5,7 +5,7 @@ This script runs an LLM agent against the Code Reviewer environment
 and produces structured logs in the required format:
   [START] task=... env=... model=...
   [STEP] step=... action=... reward=... done=... error=...
-  [END] success=... steps=... rewards=...
+  [END] success=... steps=... score=... rewards=...
 
 Environment Variables:
   API_BASE_URL: The API endpoint for the LLM (default: https://router.huggingface.co/v1)
@@ -26,9 +26,6 @@ MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
 TASK_NAME = os.getenv("CODE_REVIEWER_TASK", "syntax_check")
 BENCHMARK = os.getenv("CODE_REVIEWER_BENCHMARK", "code-reviewer-env")
-
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
 
 # Hyperparameters
 MAX_STEPS = 20
@@ -91,11 +88,11 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
     )
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     """Log the end of an episode."""
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True,
     )
 
@@ -216,21 +213,19 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
     """
     from environment import CodeReviewerEnv
     from models import CodeReviewerAction, CodeIssue, IssueType, Severity
-    
-    # Initialize environment
-    env = CodeReviewerEnv(task_name=task_name)
-    observation = env.reset(task_name)
-    
-    log_start(task_name, BENCHMARK, MODEL_NAME)
-    
+
     rewards_list = []
     done = False
     step = 0
     success = False
     final_score = 0.0
-    episode_error = None
+    env = None
 
     try:
+        # Initialize environment
+        env = CodeReviewerEnv(task_name=task_name)
+        observation = env.reset(task_name)
+
         while not done and step < MAX_STEPS:
             step += 1
 
@@ -302,31 +297,46 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
             success = False
 
     except Exception as e:
-        episode_error = e
+        print(f"Error running episode: {e}", flush=True)
         success = False
     finally:
-        env.close()
-        log_end(success, step, rewards_list)
-
-    if episode_error is not None:
-        raise episode_error
+        if env is not None:
+            try:
+                env.close()
+            except Exception as close_error:
+                print(f"Error closing environment: {close_error}", flush=True)
 
     return success, step, final_score, rewards_list
 
 
 def main():
     """Main entry point."""
-    # Initialize OpenAI client
-    client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=HF_TOKEN,
-    )
-    
-    # Run episode
-    success, steps, score, rewards = run_episode(client, TASK_NAME)
-    
-    # Return exit code based on success
-    return 0 if success else 1
+    log_start(TASK_NAME, BENCHMARK, MODEL_NAME)
+
+    success = False
+    steps = 0
+    score = 0.0
+    rewards: List[float] = []
+
+    try:
+        if HF_TOKEN is None:
+            raise ValueError("HF_TOKEN environment variable is required")
+
+        client = OpenAI(
+            base_url=API_BASE_URL,
+            api_key=HF_TOKEN,
+        )
+
+        success, steps, score, rewards = run_episode(client, TASK_NAME)
+    except Exception as e:
+        print(f"Fatal inference error: {e}", flush=True)
+        success = False
+        score = 0.0
+    finally:
+        log_end(success, steps, score, rewards)
+
+    # Always exit cleanly so validators can score the emitted logs.
+    return 0
 
 
 if __name__ == "__main__":

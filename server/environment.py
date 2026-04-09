@@ -253,18 +253,9 @@ class CodeReviewerEnv:
 
         # Calculate completeness reward
         expected_count = len(self._env_state.current_task.expected_issues)
-        found_count = len(
-            [
-                i
-                for i in self._env_state.identified_issues
-                if any(
-                    self._issues_match(i, exp)
-                    for exp in self._env_state.current_task.expected_issues
-                )
-            ]
-        )
+        found_count = self._count_unique_matches()
 
-        completeness = found_count / expected_count if expected_count > 0 else 1.0
+        completeness = min(found_count / expected_count, 1.0) if expected_count > 0 else 1.0
         completeness_reward = completeness * 0.5
 
         # Efficiency reward (bonus for completing early)
@@ -302,6 +293,20 @@ class CodeReviewerEnv:
 
         return line_match and type_match and severity_match
 
+    def _count_unique_matches(self) -> int:
+        """Count how many expected issues have been correctly identified."""
+        if self._env_state.current_task is None:
+            return 0
+
+        expected_issues = self._env_state.current_task.expected_issues
+        identified_issues = self._env_state.identified_issues
+
+        return sum(
+            1
+            for expected in expected_issues
+            if any(self._issues_match(identified, expected) for identified in identified_issues)
+        )
+
     def _calculate_reward(
         self,
         step_reward: float,
@@ -313,17 +318,10 @@ class CodeReviewerEnv:
         # Calculate task completion score
         if self._env_state.current_task:
             expected = len(self._env_state.current_task.expected_issues)
-            correctly_identified = len(
-                [
-                    i
-                    for i in self._env_state.identified_issues
-                    if any(
-                        self._issues_match(i, exp)
-                        for exp in self._env_state.current_task.expected_issues
-                    )
-                ]
+            correctly_identified = self._count_unique_matches()
+            completion_score = (
+                min(correctly_identified / expected, 1.0) if expected > 0 else 1.0
             )
-            completion_score = correctly_identified / expected if expected > 0 else 1.0
         else:
             completion_score = 0.0
 
@@ -423,7 +421,11 @@ class CodeReviewerEnv:
 
         # Calculate completion score
         expected_count = len(expected_issues)
-        completion_score = len(matched) / expected_count if expected_count > 0 else 1.0
+        completion_score = (
+            min(self._count_unique_matches() / expected_count, 1.0)
+            if expected_count > 0
+            else 1.0
+        )
 
         return ReviewResult(
             task_name=self.task_name,

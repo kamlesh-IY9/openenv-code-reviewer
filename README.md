@@ -436,7 +436,7 @@ python inference.py
 [STEP] step=1 action=identify_issue(line=5,type=syntax_error) reward=0.40 done=false error=null
 [STEP] step=2 action=identify_issue(line=10,type=syntax_error) reward=0.40 done=false error=null
 ...
-[END] success=true steps=12 rewards=0.40,0.40,0.30,0.55
+[END] success=true steps=12 score=0.82 rewards=0.40,0.40,0.30,0.55
 ```
 
 ---
