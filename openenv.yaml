@@ -47,7 +47,7 @@ tasks:
     max_steps: 15
     grader:
       module: graders
-      function: grade_task
+      function: grade_syntax_check
 
   - name: logic_bug_detection
     description: "Review a Python snippet and identify logic bugs that lead to incorrect behavior."
@@ -55,7 +55,7 @@ tasks:
     max_steps: 18
     grader:
       module: graders
-      function: grade_task
+      function: grade_logic_bug_detection
 
   - name: security_audit
     description: "Audit a Python web application snippet for security vulnerabilities."
@@ -63,7 +63,7 @@ tasks:
     max_steps: 25
     grader:
       module: graders
-      function: grade_task
+      function: grade_security_audit
 
 grader:
   module: graders

@@ -91,6 +91,22 @@ def grade_task(task_id: str, answer: str = "") -> Dict[str, Any]:
     }
 
 
+def grade_syntax_check(answer: str = "") -> Dict[str, Any]:
+    return grade_task("syntax_check", answer)
+
+
+def grade_logic_bug_detection(answer: str = "") -> Dict[str, Any]:
+    return grade_task("logic_bug_detection", answer)
+
+
+def grade_security_audit(answer: str = "") -> Dict[str, Any]:
+    return grade_task("security_audit", answer)
+
+
 def list_graders() -> Dict[str, str]:
     """Return explicit grader mappings for all tasks."""
-    return {task_id: "graders.grade_task" for task_id in TASKS}
+    return {
+        "syntax_check": "graders.grade_syntax_check",
+        "logic_bug_detection": "graders.grade_logic_bug_detection",
+        "security_audit": "graders.grade_security_audit",
+    }
