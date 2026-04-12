@@ -65,7 +65,8 @@ include = [
     "/server.py",
     "/models.py",
     "/client.py",
-    "/tasks.py",
+    "/task_config.py",
+    "/tasks",
     "/environment.py",  # Root re-export wrapper
     "/inference.py",
     "/openenv.yaml",

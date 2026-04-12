@@ -391,10 +391,10 @@ def get_task_metadata() -> list[dict]:
                 "difficulty": task.difficulty,
                 "max_steps": task.max_steps,
                 "expected_issues": len(task.expected_issues),
-                "grader": f"graders:grade_{task_name}",
+                "grader": f"tasks.{task_name}.grader:grade",
                 "has_grader": True,
                 "grader_endpoint": "/grader",
-                "grader_fn": f"graders.grade_{task_name}",
+                "grader_fn": f"tasks.{task_name}.grader.grade",
                 "reward_range": [0.001, 0.999],
                 "action_schema": {
                     "action_types": [

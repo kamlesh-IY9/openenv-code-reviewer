@@ -51,7 +51,7 @@ def check_required_files():
         ("inference.py", "Baseline inference script"),
         ("models.py", "Pydantic models"),
         ("environment.py", "Environment implementation"),
-        ("tasks.py", "Task definitions"),
+        ("task_config.py", "Task definitions"),
         ("server.py", "WebSocket server"),
     ]
     
