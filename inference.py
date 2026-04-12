@@ -267,7 +267,7 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
     done = False
     step = 0
     success = False
-    final_score = 0.0
+    final_score = 0.001
 
     try:
         # Wait for server to be ready (matters when Docker starts cold)
@@ -364,7 +364,7 @@ def main():
 
     success = False
     steps = 0
-    score = 0.0
+    score = 0.001
     rewards: List[float] = []
 
     try:
@@ -380,7 +380,7 @@ def main():
     except Exception as e:
         print(f"Fatal inference error: {e}", flush=True)
         success = False
-        score = 0.0
+        score = 0.001
     finally:
         log_end(success, steps, score, rewards)
 
