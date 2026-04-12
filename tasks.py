@@ -391,7 +391,7 @@ def get_task_metadata() -> list[dict]:
                 "difficulty": task.difficulty,
                 "max_steps": task.max_steps,
                 "expected_issues": len(task.expected_issues),
-                "grader": True,
+                "grader": f"graders:grade_{task_name}",
                 "has_grader": True,
                 "grader_endpoint": "/grader",
                 "grader_fn": f"graders.grade_{task_name}",
