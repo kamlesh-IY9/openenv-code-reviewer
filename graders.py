@@ -107,7 +107,7 @@ def grade_security_audit(answer: str = "") -> Dict[str, Any]:
 def list_graders() -> Dict[str, str]:
     """Return explicit grader mappings for all tasks."""
     return {
-        "syntax_check": "graders.grade_syntax_check",
-        "logic_bug_detection": "graders.grade_logic_bug_detection",
-        "security_audit": "graders.grade_security_audit",
+        "syntax_check": "tasks.syntax_check.grader",
+        "logic_bug_detection": "tasks.logic_bug_detection.grader",
+        "security_audit": "tasks.security_audit.grader",
     }
