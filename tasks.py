@@ -395,7 +395,7 @@ def get_task_metadata() -> list[dict]:
                 "has_grader": True,
                 "grader_endpoint": "/grader",
                 "grader_fn": f"graders.grade_{task_name}",
-                "reward_range": [0.0, 1.0],
+                "reward_range": [0.001, 0.999],
                 "action_schema": {
                     "action_types": [
                         "identify_issue",

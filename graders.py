@@ -78,7 +78,8 @@ def grade_task(task_id: str, answer: str = "") -> Dict[str, Any]:
 
     expected_count = len(task.expected_issues)
     matched_count = len(set(matched_lines))
-    score = min(matched_count / expected_count, 1.0) if expected_count > 0 else 1.0
+    raw_score = min(matched_count / expected_count, 1.0) if expected_count > 0 else 1.0
+    score = max(0.001, min(raw_score, 0.999))
 
     return {
         "task_id": task_id,
