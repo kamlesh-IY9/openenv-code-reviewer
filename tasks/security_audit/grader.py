@@ -1,4 +1,4 @@
-from graders import grade_task_answer
+from graders import grade_task
 
 def grade(*args, **kwargs):
-    return grade_task_answer("security_audit", kwargs.get("answer", args[0] if args else ""))
+    return grade_task("security_audit", kwargs.get("answer", args[0] if args else ""))
