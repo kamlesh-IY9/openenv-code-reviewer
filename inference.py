@@ -267,7 +267,7 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
     done = False
     step = 0
     success = False
-    final_score = 0.001
+    final_score = 0.01
 
     try:
         # Wait for server to be ready (matters when Docker starts cold)
@@ -297,8 +297,8 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
 
             if action_data is None:
                 error = "Failed to parse model response"
-                log_step(step, "parse_error", 0.001, True, error)
-                rewards_list.append(0.001)
+                log_step(step, "parse_error", 0.01, True, error)
+                rewards_list.append(0.01)
                 done = True
                 break
 
@@ -323,7 +323,7 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
                 step_resp = _step(env_action)
                 obs = step_resp["observation"]
                 reward_obj = step_resp.get("reward") or {}
-                step_reward = max(0.001, min(float(reward_obj.get("step_reward", 0.0)), 0.999))
+                step_reward = max(0.01, min(float(reward_obj.get("step_reward", 0.0)), 0.99))
                 done = bool(step_resp.get("done", False))
                 info = step_resp.get("info") or {}
 
@@ -340,15 +340,15 @@ def run_episode(client: OpenAI, task_name: str) -> tuple:
 
                 # Collect final score when done
                 if done:
-                    final_score = max(0.001, min(float(
+                    final_score = max(0.01, min(float(
                         reward_obj.get("task_completion_score", 0.0)
-                    ), 0.999))
+                    ), 0.99))
                     success = final_score >= SUCCESS_SCORE_THRESHOLD
 
             except Exception as e:
                 error = str(e)
-                log_step(step, "action_error", 0.001, True, error)
-                rewards_list.append(0.001)
+                log_step(step, "action_error", 0.01, True, error)
+                rewards_list.append(0.01)
                 done = True
 
     except Exception as e:
