@@ -319,11 +319,12 @@ class CodeReviewerEnv:
         if self._env_state.current_task:
             expected = len(self._env_state.current_task.expected_issues)
             correctly_identified = self._count_unique_matches()
-            completion_score = (
+            raw_score = (
                 min(correctly_identified / expected, 1.0) if expected > 0 else 1.0
             )
+            completion_score = max(0.001, min(raw_score, 0.999))
         else:
-            completion_score = 0.0
+            completion_score = 0.001
 
         return CodeReviewerReward(
             total_reward=self._env_state.episode_reward,
@@ -421,11 +422,12 @@ class CodeReviewerEnv:
 
         # Calculate completion score
         expected_count = len(expected_issues)
-        completion_score = (
+        raw_completion = (
             min(self._count_unique_matches() / expected_count, 1.0)
             if expected_count > 0
             else 1.0
         )
+        completion_score = max(0.001, min(raw_completion, 0.999))
 
         return ReviewResult(
             task_name=self.task_name,

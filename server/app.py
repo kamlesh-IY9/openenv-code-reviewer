@@ -1859,11 +1859,12 @@ async def grade_task(task_id: str, session_id: str = "default"):
         # Allow grading during an active episode using current progress.
         expected_count = len(TASKS[task_id].expected_issues)
         state = env.state()
-        completion_score = (
+        raw_completion = (
             min(state["issues_identified"] / expected_count, 1.0)
             if expected_count > 0
             else 1.0
         )
+        completion_score = max(0.001, min(raw_completion, 0.999))
         return {
             "task_id": task_id,
             "score": completion_score,
@@ -1877,11 +1878,12 @@ async def grade_task(task_id: str, session_id: str = "default"):
             },
         }
 
+    clamped_score = max(0.001, min(result.completion_score, 0.999))
     return {
         "task_id": task_id,
-        "score": result.completion_score,
+        "score": clamped_score,
         "success": result.success,
-        "reward": result.completion_score,
+        "reward": clamped_score,
         "max_reward": 1.0,
         "done": True,
         "breakdown": {
@@ -1916,11 +1918,12 @@ async def grade_answer(request: Optional[Dict[str, Any]] = None):
             if env.task_name == task_id:
                 current_state = env.state()
                 expected_count = len(TASKS[task_id].expected_issues)
-                session_score = (
+                raw_score = (
                     min(current_state["issues_identified"] / expected_count, 1.0)
                     if expected_count > 0
                     else 1.0
                 )
+                session_score = max(0.001, min(raw_score, 0.999))
                 session_result = {
                     "task_id": task_id,
                     "score": session_score,

@@ -41,7 +41,8 @@ models:
   reward: CodeReviewerReward
 
 tasks:
-  - name: syntax_check
+  - id: syntax_check
+    name: syntax_check
     description: "Review a Python snippet and identify all syntax errors."
     difficulty: easy
     max_steps: 15
@@ -49,7 +50,8 @@ tasks:
       module: graders
       function: grade_syntax_check
 
-  - name: logic_bug_detection
+  - id: logic_bug_detection
+    name: logic_bug_detection
     description: "Review a Python snippet and identify logic bugs that lead to incorrect behavior."
     difficulty: medium
     max_steps: 18
@@ -57,7 +59,8 @@ tasks:
       module: graders
       function: grade_logic_bug_detection
 
-  - name: security_audit
+  - id: security_audit
+    name: security_audit
     description: "Audit a Python web application snippet for security vulnerabilities."
     difficulty: hard
     max_steps: 25
