@@ -1834,14 +1834,9 @@ async def grade_task(task_id: str, session_id: str = "default"):
             content={"error": f"Unknown task: {task_id}", "status": "error"},
         )
 
+    # If no session exists, use standalone grader (for validator probes)
     if session_id not in env_store:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Session not found. Call /reset first.",
-                "status": "error",
-            },
-        )
+        return grade_task_answer(task_id, "")
 
     env = env_store[session_id]
     if env.task_name != task_id:

@@ -1,73 +1,25 @@
+spec_version: 1
 name: code-reviewer-env
-version: "1.0.0"
-openenv_version: "0.2.0"
-description: |
-  A real-world code review environment where AI agents review code snippets,
-  identify issues (syntax errors, logic bugs, security vulnerabilities),
-  and suggest appropriate fixes. Designed for training and evaluating
-  code review assistant agents.
-
-author: "Kamlesh Patil"
-tags:
-  - code-review
-  - software-engineering
-  - real-world
-  - educational
-
-interface:
-  type: websocket
-  path: /ws
-
-endpoints:
-  reset:
-    method: POST
-    path: /reset
-  step:
-    method: POST
-    path: /step
-  state:
-    method: GET
-    path: /state
-  tasks:
-    method: GET
-    path: /tasks
-  grader:
-    method: POST
-    path: /grader
-
-models:
-  observation: CodeReviewerObservation
-  action: CodeReviewerAction
-  reward: CodeReviewerReward
+type: space
+runtime: fastapi
+app: server.app:app
+port: 7860
 
 tasks:
   - id: syntax_check
     name: syntax_check
     description: "Review a Python snippet and identify all syntax errors."
     difficulty: easy
-    max_steps: 15
     grader: "graders:grade_syntax_check"
 
   - id: logic_bug_detection
     name: logic_bug_detection
     description: "Review a Python snippet and identify logic bugs that lead to incorrect behavior."
     difficulty: medium
-    max_steps: 18
     grader: "graders:grade_logic_bug_detection"
 
   - id: security_audit
     name: security_audit
     description: "Audit a Python web application snippet for security vulnerabilities."
     difficulty: hard
-    max_steps: 25
     grader: "graders:grade_security_audit"
-
-grader: "graders:grade_task"
-
-config:
-  max_steps_per_episode: 20
-  default_task: "syntax_check"
-  available_tasks:
-    - syntax_check
-    - logic_bug_detection
-    - security_audit
